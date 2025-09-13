@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:mobimart/supabase_manager.dart';
 import 'splash_screen.dart';
+import 'profile_page.dart';
+import 'package:provider/provider.dart';
+import 'providers/order_provider.dart';
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseManager.initialize();
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => OrderProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -29,6 +37,9 @@ class MyApp extends StatelessWidget {
       ),
       home: SplashScreen(), // start with signup
       debugShowCheckedModeBanner: false,
-    );
+      routes: {
+        '/profile': (_) => const ProfilePage(),
+      },
+  );
   }
 }

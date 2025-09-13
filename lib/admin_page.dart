@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobimart/supabase_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_pages.dart';
+import 'admin_orders_page.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({super.key});
@@ -38,22 +39,32 @@ class _AdminPageState extends State<AdminPage> {
 
     if (name.isEmpty || price.isEmpty || _imageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill all fields & select an image')));
+        const SnackBar(
+          content: Text('Please fill all fields & select an image'),
+        ),
+      );
       return;
     }
 
     try {
       // Determine extension and content type
       String extension = _imageFile!.name.split('.').last.toLowerCase();
-      String imageName = '${DateTime.now().millisecondsSinceEpoch}_$name.$extension';
+      String imageName =
+          '${DateTime.now().millisecondsSinceEpoch}_$name.$extension';
       String? contentType;
-      if (extension == 'png') contentType = 'image/png';
-      else if (extension == 'jpg' || extension == 'jpeg') contentType = 'image/jpeg';
+      if (extension == 'png') {
+        contentType = 'image/png';
+      } else if (extension == 'jpg' || extension == 'jpeg')
+        contentType = 'image/jpeg';
 
       // Upload to Supabase storage
       await SupabaseManager.client.storage
           .from('pictures')
-          .uploadBinary(imageName, _imageBytes!, fileOptions: FileOptions(contentType: contentType));
+          .uploadBinary(
+            imageName,
+            _imageBytes!,
+            fileOptions: FileOptions(contentType: contentType),
+          );
 
       final imageUrl = SupabaseManager.client.storage
           .from('pictures')
@@ -66,8 +77,9 @@ class _AdminPageState extends State<AdminPage> {
         'image_url': imageUrl,
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Product "$name" added!')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Product "$name" added!')));
 
       // Clear fields
       nameController.clear();
@@ -77,8 +89,9 @@ class _AdminPageState extends State<AdminPage> {
         _imageBytes = null;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -86,7 +99,9 @@ class _AdminPageState extends State<AdminPage> {
     await SupabaseManager.client.auth.signOut();
     if (!mounted) return;
     Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const AuthPage()));
+      context,
+      MaterialPageRoute(builder: (_) => const AuthPage()),
+    );
   }
 
   @override
@@ -102,16 +117,27 @@ class _AdminPageState extends State<AdminPage> {
       appBar: AppBar(
         title: const Text('Admin - Add Product'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-          )
+          IconButton(icon: const Icon(Icons.logout), onPressed: _signOut),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.list_alt),
+              label: const Text('View Orders'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pinkAccent,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminOrdersPage()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: nameController,
               decoration: const InputDecoration(labelText: 'Product Name'),
@@ -126,19 +152,25 @@ class _AdminPageState extends State<AdminPage> {
             _imageBytes != null
                 ? Image.memory(_imageBytes!, height: 120)
                 : const SizedBox(
-              height: 120,
-              child: Center(child: Text('No image selected')),
-            ),
+                    height: 120,
+                    child: Center(child: Text('No image selected')),
+                  ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _pickImage,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.pink, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Select Product Image'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _addProduct,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.pink, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Add Product'),
             ),
           ],

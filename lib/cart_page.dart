@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobimart/supabase_manager.dart';
+import 'payment_page.dart';
+import 'confirmation_page.dart';
 
 class CartPage extends StatefulWidget {
   final List<Map<String, dynamic>> cart; // List of products in cart
@@ -10,9 +12,17 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
+  late List<Map<String, dynamic>> _cart;
+
+  @override
+  void initState() {
+    super.initState();
+    _cart = List<Map<String, dynamic>>.from(widget.cart);
+  }
+
   double get totalPrice {
     double total = 0;
-    for (var item in widget.cart) {
+    for (var item in _cart) {
       total += item['price'] ?? 0;
     }
     return total;
@@ -21,47 +31,51 @@ class _CartPageState extends State<CartPage> {
   /// Remove item from cart
   void _removeFromCart(int index) {
     setState(() {
-      widget.cart.removeAt(index);
+      _cart.removeAt(index);
     });
   }
 
-  /// Validate order and insert into order table
-  Future<void> _validateOrder() async {
-    final user = SupabaseManager.client.auth.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in")),
-      );
-      return;
-    }
-
-    try {
-      // Insert each product as an order row
-      for (var item in widget.cart) {
-        await SupabaseManager.client.from('orders').insert({
-          'product_id': item['id'], // your product id
-          'user_id': user.id,
-          'total_price': item['price'],
-          'status': 'pending', // or whatever default
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Order validated!")),
-      );
-
-      // Clear cart
-      setState(() {
-        widget.cart.clear();
-      });
-
-      // Optionally, navigate back or refresh home
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error validating order: $e")),
-      );
-    }
+  void _checkout() async {
+    if (_cart.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentPage(
+          total: totalPrice,
+          onPaymentSuccess: () async {
+            final user = SupabaseManager.client.auth.currentUser;
+            if (user == null) return;
+            try {
+              for (var item in _cart) {
+                await SupabaseManager.client.from('orders').insert({
+                  'product_id': item['id'],
+                  'user_id': user.id,
+                  'total_price': item['price'],
+                  'status': 'pending',
+                });
+              }
+              setState(() {
+                _cart.clear();
+              });
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ConfirmationPage(
+                    message:
+                        'Order placed! You will be notified when validated.',
+                  ),
+                ),
+                (route) => route.isFirst,
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Error validating order: $e")),
+              );
+            }
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -69,62 +83,76 @@ class _CartPageState extends State<CartPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Your Cart"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context, _cart);
+          },
+        ),
       ),
-      body: widget.cart.isEmpty
+      body: _cart.isEmpty
           ? const Center(child: Text("Your cart is empty"))
           : Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: widget.cart.length,
-              itemBuilder: (context, index) {
-                final item = widget.cart[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                      vertical: 8.0, horizontal: 12.0),
-                  child: ListTile(
-                    leading: item['image_url'] != null
-                        ? Image.network(
-                      item['image_url'],
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    )
-                        : const SizedBox(width: 50, height: 50),
-                    title: Text(item['name'] ?? "Unnamed"),
-                    subtitle: Text("${item['price'] ?? 0} XAF"),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _removeFromCart(index),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
               children: [
-                Text(
-                  "Total: ${totalPrice.toStringAsFixed(0)} XAF",
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _cart.length,
+                    itemBuilder: (context, index) {
+                      final item = _cart[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          vertical: 8.0,
+                          horizontal: 12.0,
+                        ),
+                        child: ListTile(
+                          leading:
+                              item['image_url'] != null &&
+                                  item['image_url'].toString().isNotEmpty
+                              ? Image.network(
+                                  item['image_url'],
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.broken_image, size: 30),
+                                )
+                              : const Icon(Icons.image_not_supported, size: 30),
+                          title: Text(item['name'] ?? "Unnamed"),
+                          subtitle: Text("${item['price'] ?? 0} XAF"),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _removeFromCart(index),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  onPressed: widget.cart.isEmpty ? null : _validateOrder,
-                  child: const Text("Validate Order"),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Total: $totalPrice XAF",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: _cart.isEmpty ? null : _checkout,
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor:
+                              Colors.white, // Ensures label is white
+                        ),
+                        child: const Text("Checkout"),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
